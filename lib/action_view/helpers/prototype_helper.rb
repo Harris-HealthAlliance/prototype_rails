@@ -343,7 +343,9 @@ module ActionView
           #   page.replace_html 'person-45', :partial => 'person', :object => @person
           #
           def replace_html(id, *options_for_render)
+            self << "if ($('#{id}')) {"
             call 'Element.update', id, render(*options_for_render)
+            self << '}'
           end
 
           # Replaces the "outer HTML" (i.e., the entire element, not just its
