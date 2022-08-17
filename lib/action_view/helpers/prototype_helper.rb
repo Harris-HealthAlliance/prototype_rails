@@ -6,8 +6,16 @@ require 'active_support/core_ext/string/output_safety'
 module ActionView
   # A string that returns itself as its JSON-encoded form.
   class JsonLiteral < String
-    def as_json(options = nil) self end #:nodoc:
-    def encode_json(encoder) self end #:nodoc:
+    def as_json(options = nil)
+      self
+    end
+
+    #:nodoc:
+    def encode_json(encoder)
+      self
+    end
+
+    #:nodoc:
   end
 
   # = Action View Prototype Helpers
@@ -101,12 +109,12 @@ module ActionView
     # See JavaScriptGenerator for information on updating multiple elements
     # on the page in an Ajax response.
     module PrototypeHelper
-      CALLBACKS    = Set.new([ :create, :uninitialized, :loading, :loaded,
-                       :interactive, :complete, :failure, :success ] +
-                       (100..599).to_a)
-      AJAX_OPTIONS = Set.new([ :before, :after, :condition, :url,
-                       :asynchronous, :method, :insertion, :position,
-                       :form, :with, :update, :script, :type ]).merge(CALLBACKS)
+      CALLBACKS = Set.new([:create, :uninitialized, :loading, :loaded,
+                           :interactive, :complete, :failure, :success] +
+                            (100..599).to_a)
+      AJAX_OPTIONS = Set.new([:before, :after, :condition, :url,
+                              :asynchronous, :method, :insertion, :position,
+                              :form, :with, :update, :script, :type]).merge(CALLBACKS)
 
       # Returns the JavaScript needed for a remote function.
       # See the link_to_remote documentation at https://github.com/rails/prototype_legacy_helper as it takes the same arguments.
@@ -120,28 +128,29 @@ module ActionView
       #     <option value="1">World</option>
       #   </select>
       def remote_function(options)
-        javascript_options = options_for_ajax(options)
+        javascript_options = {method: options[:method] || 'GET'}
+        javascript_options[:url] = ERB::Util.html_escape(escape_javascript(url_for(options[:url])))
 
         update = ''
         if options[:update] && options[:update].is_a?(Hash)
-          update  = []
+          update = []
           update << "success:'#{options[:update][:success]}'" if options[:update][:success]
-          update << "failure:'#{options[:update][:failure]}'" if options[:update][:failure]
-          update  = '{' + update.join(',') + '}'
+          update << "error:'#{options[:update][:failure]}'" if options[:update][:failure]
+          update = '{' + update.join(',') + '}'
         elsif options[:update]
           update << "'#{options[:update]}'"
         end
 
-        function = update.empty? ?
-          "new Ajax.Request(" :
-          "new Ajax.Updater(#{update}, "
-
-        url_options = options[:url]
-        function << "'#{ERB::Util.html_escape(escape_javascript(url_for(url_options)))}'"
-        function << ", #{javascript_options})"
+        function = "$.ajax({"
+        function << "url: '#{javascript_options[:url]}'"
+        function << ", method: '#{javascript_options[:method]}'"
+        function << ", data: {#{options[:with]}}" if options[:with]
+        function << ", beforeSend: () => {#{options[:loading]}}" if options[:loading]
+        function << ", complete: () => {#{options[:complete]}}" if options[:complete]
+        function << "})"
 
         function = "#{options[:before]}; #{function}" if options[:before]
-        function = "#{function}; #{options[:after]}"  if options[:after]
+        function = "#{function}; #{options[:after]}" if options[:after]
         function = "if (#{options[:condition]}) { #{function}; }" if options[:condition]
         function = "if (confirm('#{escape_javascript(options[:confirm])}')) { #{function}; }" if options[:confirm]
 
@@ -151,9 +160,14 @@ module ActionView
       # All the methods were moved to GeneratorMethods so that
       # #include_helpers_from_context has nothing to overwrite.
       class JavaScriptGenerator #:nodoc:
-        def initialize(context, &block) #:nodoc:
+        def initialize(context, &block)
+          #:nodoc:
           @context, @lines = context, []
-          def @lines.encoding() last.to_s.encoding end
+
+          def @lines.encoding()
+            last.to_s.encoding
+          end
+
           include_helpers_from_context
           @context.with_output_buffer(@lines) do
             @context.instance_exec(self, &block)
@@ -161,10 +175,11 @@ module ActionView
         end
 
         private
-          def include_helpers_from_context
-            extend @context.controller._helpers if @context.controller.respond_to?(:_helpers) && @context.controller._helpers
-            extend GeneratorMethods
-          end
+
+        def include_helpers_from_context
+          extend @context.controller._helpers if @context.controller.respond_to?(:_helpers) && @context.controller._helpers
+          extend GeneratorMethods
+        end
 
         # JavaScriptGenerator generates blocks of JavaScript code that allow you
         # to change the content and presentation of multiple DOM elements.  Use
@@ -238,7 +253,7 @@ module ActionView
               if ActionView::Base.debug_rjs
                 source = javascript.dup
                 javascript.replace "try {\n#{source}\n} catch (e) "
-                javascript << "{ alert('RJS error:\\n\\n' + e.toString()); alert('#{source.gsub('\\','\0\0').gsub(/\r\n|\n|\r/, "\\n").gsub(/["']/) { |m| "\\#{m}" }}'); throw e }"
+                javascript << "{ alert('RJS error:\\n\\n' + e.toString()); alert('#{source.gsub('\\', '\0\0').gsub(/\r\n|\n|\r/, "\\n").gsub(/["']/) { |m| "\\#{m}" }}'); throw e }"
               end
             end
           end
@@ -257,10 +272,10 @@ module ActionView
           #   page[Post.new]  # => $('new_post')
           def [](id)
             case id
-              when String, Symbol, NilClass
-                JavaScriptElementProxy.new(self, id)
-              else
-                JavaScriptElementProxy.new(self, RecordIdentifier.dom_id(id))
+            when String, Symbol, NilClass
+              JavaScriptElementProxy.new(self, id)
+            else
+              JavaScriptElementProxy.new(self, RecordIdentifier.dom_id(id))
             end
           end
 
@@ -343,7 +358,7 @@ module ActionView
           #   page.replace_html 'person-45', :partial => 'person', :object => @person
           #
           def replace_html(id, *options_for_render)
-            self << "if ($('#{id}')) {"
+            self << "if ($('##{id}')) {"
             call 'Element.update', id, render(*options_for_render)
             self << '}'
           end
@@ -543,53 +558,54 @@ module ActionView
           end
 
           private
-            def loop_on_multiple_args(method, ids)
-              record(ids.size>1 ?
-                "#{javascript_object_for(ids)}.each(#{method})" :
-                "#{method}(#{javascript_object_for(ids.first)})")
-            end
 
-            def page
-              self
-            end
+          def loop_on_multiple_args(method, ids)
+            record(ids.size > 1 ?
+                     "#{javascript_object_for(ids)}.each(#{method})" :
+                     "#{method}(#{javascript_object_for(ids.first)})")
+          end
 
-            def record(line)
-              line = "#{line.to_s.chomp.gsub(/\;\z/, '')};"
-              self << line
-              line
-            end
+          def page
+            self
+          end
 
-            def render(*options)
-              with_formats(:html) do
-                case option = options.first
-                when Hash
-                  @context.render(*options)
-                else
-                  option.to_s
-                end
+          def record(line)
+            line = "#{line.to_s.chomp.gsub(/\;\z/, '')};"
+            self << line
+            line
+          end
+
+          def render(*options)
+            with_formats(:html) do
+              case option = options.first
+              when Hash
+                @context.render(*options)
+              else
+                option.to_s
               end
             end
+          end
 
-            def with_formats(*args)
-              return yield unless @context
+          def with_formats(*args)
+            return yield unless @context
 
-              lookup = @context.lookup_context
-              begin
-                old_formats, lookup.formats = lookup.formats, args
-                yield
-              ensure
-                lookup.formats = old_formats
-              end
+            lookup = @context.lookup_context
+            begin
+              old_formats, lookup.formats = lookup.formats, args
+              yield
+            ensure
+              lookup.formats = old_formats
             end
+          end
 
-            def block_to_function(block)
-              generator = self.class.new(@context, &block)
-              literal("function() { #{generator.to_s} }")
-            end
+          def block_to_function(block)
+            generator = self.class.new(@context, &block)
+            literal("function() { #{generator.to_s} }")
+          end
 
-            def method_missing(method, *arguments)
-              JavaScriptProxy.new(self, method.to_s.camelize)
-            end
+          def method_missing(method, *arguments)
+            JavaScriptProxy.new(self, method.to_s.camelize)
+          end
         end
       end
 
@@ -617,56 +633,57 @@ module ActionView
       end
 
       protected
-        def options_for_javascript(options)
-          if options.empty?
-            '{}'
+
+      def options_for_javascript(options)
+        if options.empty?
+          '{}'
+        else
+          "{#{options.keys.map { |k| "#{k}:#{options[k]}" }.sort.join(', ')}}"
+        end
+      end
+
+      def options_for_ajax(options)
+        js_options = build_callbacks(options)
+
+        js_options['asynchronous'] = options[:type] != :synchronous
+        js_options['method'] = method_option_to_s(options[:method]) if options[:method]
+        js_options['insertion'] = "'#{options[:position].to_s.downcase}'" if options[:position]
+        js_options['evalScripts'] = options[:script].nil? || options[:script]
+
+        if options[:form]
+          js_options['parameters'] = 'Form.serialize(this)'
+        elsif options[:submit]
+          js_options['parameters'] = "Form.serialize('#{options[:submit]}')"
+        elsif options[:with]
+          js_options['parameters'] = options[:with]
+        end
+
+        if protect_against_forgery? && !options[:form]
+          if js_options['parameters']
+            js_options['parameters'] << " + '&"
           else
-            "{#{options.keys.map { |k| "#{k}:#{options[k]}" }.sort.join(', ')}}"
+            js_options['parameters'] = "'"
           end
+          js_options['parameters'] << "#{request_forgery_protection_token}=' + encodeURIComponent('#{escape_javascript form_authenticity_token}')"
         end
 
-        def options_for_ajax(options)
-          js_options = build_callbacks(options)
+        options_for_javascript(js_options)
+      end
 
-          js_options['asynchronous'] = options[:type] != :synchronous
-          js_options['method']       = method_option_to_s(options[:method]) if options[:method]
-          js_options['insertion']    = "'#{options[:position].to_s.downcase}'" if options[:position]
-          js_options['evalScripts']  = options[:script].nil? || options[:script]
+      def method_option_to_s(method)
+        (method.is_a?(String) and !method.index("'").nil?) ? method : "'#{method}'"
+      end
 
-          if options[:form]
-            js_options['parameters'] = 'Form.serialize(this)'
-          elsif options[:submit]
-            js_options['parameters'] = "Form.serialize('#{options[:submit]}')"
-          elsif options[:with]
-            js_options['parameters'] = options[:with]
+      def build_callbacks(options)
+        callbacks = {}
+        options.each do |callback, code|
+          if CALLBACKS.include?(callback)
+            name = 'on' + callback.to_s.capitalize
+            callbacks[name] = "function(request){#{code}}"
           end
-
-          if protect_against_forgery? && !options[:form]
-            if js_options['parameters']
-              js_options['parameters'] << " + '&"
-            else
-              js_options['parameters'] = "'"
-            end
-            js_options['parameters'] << "#{request_forgery_protection_token}=' + encodeURIComponent('#{escape_javascript form_authenticity_token}')"
-          end
-
-          options_for_javascript(js_options)
         end
-
-        def method_option_to_s(method)
-          (method.is_a?(String) and !method.index("'").nil?) ? method : "'#{method}'"
-        end
-
-        def build_callbacks(options)
-          callbacks = {}
-          options.each do |callback, code|
-            if CALLBACKS.include?(callback)
-              name = 'on' + callback.to_s.capitalize
-              callbacks[name] = "function(request){#{code}}"
-            end
-          end
-          callbacks
-        end
+        callbacks
+      end
     end
 
     # Converts chained method calls on DOM proxy elements into JavaScript chains
@@ -681,37 +698,38 @@ module ActionView
       end
 
       private
-        def method_missing(method, *arguments, &block)
-          if method.to_s =~ /(.*)=$/
-            assign($1, arguments.first)
-          else
-            call("#{method.to_s.camelize(:lower)}", *arguments, &block)
-          end
-        end
 
-        def call(function, *arguments, &block)
-          append_to_function_chain!("#{function}(#{@generator.send(:arguments_for_call, arguments, block)})")
-          self
+      def method_missing(method, *arguments, &block)
+        if method.to_s =~ /(.*)=$/
+          assign($1, arguments.first)
+        else
+          call("#{method.to_s.camelize(:lower)}", *arguments, &block)
         end
+      end
 
-        def assign(variable, value)
-          append_to_function_chain!("#{variable} = #{@generator.send(:javascript_object_for, value)}")
-        end
+      def call(function, *arguments, &block)
+        append_to_function_chain!("#{function}(#{@generator.send(:arguments_for_call, arguments, block)})")
+        self
+      end
 
-        def function_chain
-          @function_chain ||= @generator.instance_variable_get(:@lines)
-        end
+      def assign(variable, value)
+        append_to_function_chain!("#{variable} = #{@generator.send(:javascript_object_for, value)}")
+      end
 
-        def append_to_function_chain!(call)
-          function_chain[-1].chomp!(';')
-          function_chain[-1] += ".#{call};"
-        end
+      def function_chain
+        @function_chain ||= @generator.instance_variable_get(:@lines)
+      end
+
+      def append_to_function_chain!(call)
+        function_chain[-1].chomp!(';')
+        function_chain[-1] += ".#{call};"
+      end
     end
 
     class JavaScriptElementProxy < JavaScriptProxy #:nodoc:
       def initialize(generator, id)
         @id = id
-        super(generator, "$(#{::ActiveSupport::JSON.encode(id)})")
+        super(generator, "document.getElementById(#{::ActiveSupport::JSON.encode(id)})")
       end
 
       # Allows access of element attributes through +attribute+. Examples:
@@ -733,12 +751,16 @@ module ActionView
         call 'update', @generator.send(:render, *options_for_render)
       end
 
+      def hide
+        call 'style.display = ', 'none'
+      end
+
       def replace(*options_for_render)
-        call 'replace', @generator.send(:render, *options_for_render)
+        call 'outerHTML = ', @generator.send(:render, *options_for_render)
       end
 
       def reload(options_for_replace = {})
-        replace(options_for_replace.merge({ :partial => @id.to_s }))
+        replace(options_for_replace.merge({:partial => @id.to_s}))
       end
 
     end
@@ -746,7 +768,7 @@ module ActionView
     class JavaScriptVariableProxy < JavaScriptProxy #:nodoc:
       def initialize(generator, variable)
         @variable = JsonLiteral.new(variable)
-        @empty    = true # only record lines if we have to.  gets rid of unnecessary linebreaks
+        @empty = true # only record lines if we have to.  gets rid of unnecessary linebreaks
         super(generator)
       end
 
@@ -761,11 +783,12 @@ module ActionView
       end
 
       private
-        def append_to_function_chain!(call)
-          @generator << @variable if @empty
-          @empty = false
-          super
-        end
+
+      def append_to_function_chain!(call)
+        @generator << @variable if @empty
+        @empty = false
+        super
+      end
     end
 
     class JavaScriptCollectionProxy < JavaScriptProxy #:nodoc:
@@ -821,49 +844,50 @@ module ActionView
       end
 
       private
-        def method_missing(method, *arguments, &block)
-          if ENUMERABLE_METHODS.include?(method)
-            returnable = ENUMERABLE_METHODS_WITH_RETURN.include?(method)
-            variable   = arguments.first if returnable
-            enumerate(method, {:variable => variable, :return => returnable, :yield_args => %w(value index)}, &block)
-          else
-            super
-          end
-        end
 
-        # Options
-        #   * variable - name of the variable to set the result of the enumeration to
-        #   * method_args - array of the javascript enumeration method args that occur before the function
-        #   * yield_args - array of the javascript yield args
-        #   * return - true if the enumeration should return the last statement
-        def enumerate(enumerable, options = {}, &block)
-          options[:method_args] ||= []
-          options[:yield_args]  ||= []
-          yield_args  = options[:yield_args] * ', '
-          method_args = arguments_for_call options[:method_args] # foo, bar, function
-          method_args << ', ' unless method_args.blank?
-          add_variable_assignment!(options[:variable]) if options[:variable]
-          append_enumerable_function!("#{enumerable.to_s.camelize(:lower)}(#{method_args}function(#{yield_args}) {")
-          # only yield as many params as were passed in the block
-          yield(*options[:yield_args].collect { |p| JavaScriptVariableProxy.new(@generator, p) }[0..block.arity-1])
-          add_return_statement! if options[:return]
-          @generator << '});'
+      def method_missing(method, *arguments, &block)
+        if ENUMERABLE_METHODS.include?(method)
+          returnable = ENUMERABLE_METHODS_WITH_RETURN.include?(method)
+          variable = arguments.first if returnable
+          enumerate(method, {:variable => variable, :return => returnable, :yield_args => %w(value index)}, &block)
+        else
+          super
         end
+      end
 
-        def add_variable_assignment!(variable)
-          function_chain.push("var #{variable} = #{function_chain.pop}")
-        end
+      # Options
+      #   * variable - name of the variable to set the result of the enumeration to
+      #   * method_args - array of the javascript enumeration method args that occur before the function
+      #   * yield_args - array of the javascript yield args
+      #   * return - true if the enumeration should return the last statement
+      def enumerate(enumerable, options = {}, &block)
+        options[:method_args] ||= []
+        options[:yield_args] ||= []
+        yield_args = options[:yield_args] * ', '
+        method_args = arguments_for_call options[:method_args] # foo, bar, function
+        method_args << ', ' unless method_args.blank?
+        add_variable_assignment!(options[:variable]) if options[:variable]
+        append_enumerable_function!("#{enumerable.to_s.camelize(:lower)}(#{method_args}function(#{yield_args}) {")
+        # only yield as many params as were passed in the block
+        yield(*options[:yield_args].collect { |p| JavaScriptVariableProxy.new(@generator, p) }[0..block.arity - 1])
+        add_return_statement! if options[:return]
+        @generator << '});'
+      end
 
-        def add_return_statement!
-          unless function_chain.last =~ /return/
-            function_chain.push("return #{function_chain.pop.chomp(';')};")
-          end
-        end
+      def add_variable_assignment!(variable)
+        function_chain.push("var #{variable} = #{function_chain.pop}")
+      end
 
-        def append_enumerable_function!(call)
-          function_chain[-1].chomp!(';')
-          function_chain[-1] += ".#{call}"
+      def add_return_statement!
+        unless function_chain.last =~ /return/
+          function_chain.push("return #{function_chain.pop.chomp(';')};")
         end
+      end
+
+      def append_enumerable_function!(call)
+        function_chain[-1].chomp!(';')
+        function_chain[-1] += ".#{call}"
+      end
     end
 
     class JavaScriptElementCollectionProxy < JavaScriptCollectionProxy #:nodoc:\
