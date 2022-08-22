@@ -892,7 +892,7 @@ module ActionView
 
     class JavaScriptElementCollectionProxy < JavaScriptCollectionProxy #:nodoc:\
       def initialize(generator, pattern)
-        super(generator, "$$(#{::ActiveSupport::JSON.encode(pattern)})")
+        super(generator, "$(##{::ActiveSupport::JSON.encode(pattern)})")
       end
     end
   end
