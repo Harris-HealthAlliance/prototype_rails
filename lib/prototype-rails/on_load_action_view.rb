@@ -12,10 +12,4 @@ ActionView::Base.class_eval do
   include ActionView::Helpers::PrototypeHelper
 end
 
-if defined?(Rails.env) && Rails.env.test?
-  ActionView::TestCase.class_eval do
-    include ActionView::Helpers::PrototypeHelper
-  end
-end
-
 ActionView::Template.register_template_handler :rjs, ActionView::Template::Handlers::RJS.new
