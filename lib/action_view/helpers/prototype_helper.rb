@@ -141,7 +141,7 @@ module ActionView
           update << "'#{options[:update]}'"
         end
 
-        function = "$.ajax({"
+        function = String.new("$.ajax({")
         function << "url: '#{javascript_options[:url]}'"
         function << ", method: '#{javascript_options[:method]}'"
         function << ", data: {#{options[:with]}}" if options[:with]
