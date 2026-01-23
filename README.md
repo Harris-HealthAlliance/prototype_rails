@@ -1,29 +1,37 @@
-prototype-rails provides Prototype, Scriptaculous, and RJS on Rails 3.1
-and later.
+prototype-rails provides Prototype, Scriptaculous, and RJS helpers for Rails.
 
-Prototype and Scriptaculous are pulled in by the asset pipeline, so you don't
-need to copy the source files into your app. You may reference them in your
-s app/assets/javascripts/application.js:
+> Status: maintained privately for our own use. The repo stays open-source, but updates may be irregular and the project may be archived or removed at any time.
 
-    //= require prototype
-    //= require prototype_ujs
-    //= require effects
-    //= require dragdrop
-    //= require controls
+## Compatibility
+- Actively used on Rails 7.2.x with Ruby 3.4.x in this repo. Gem depends on `rails >= 7.2, < 7.3`.
+- Prototype/Scriptaculous assets are provided via the asset pipeline.
+- RJS template handler (`.rjs`) and `render :update` helpers are included.
 
-prototype-rails supports RJS debugging. RJS responses are wrapped to catch
-exceptions, alert() them, and re-raise the exception. Debugging is disabled by
-default. To enable in development, set `config.action_view.debug_rjs = true`
-in config/environments/development.rb.
+## Installation
+Add to your Gemfile:
+```ruby
+gem "prototype-rails", github: "Harris-HealthAlliance/prototype_rails"
+```
+Bundle and include the scripts in `app/assets/javascripts/application.js`:
+```js
+//= require prototype
+//= require prototype_ujs
+//= require effects
+//= require dragdrop
+//= require controls
+```
 
----
+## Usage
+- Use `.rjs` templates or `render :update` blocks to generate Prototype-powered responses.
+- `ActionView::Helpers::PrototypeHelper` is included automatically; helpers like `link_to_function` and `button_to_function` are available.
+- Enable RJS debug mode in development if you want exceptions surfaced:
+  ```ruby
+  config.action_view.debug_rjs = true
+  ```
 
-## Support for Rails 4.1 and above
+## Development
+- Requirements: Ruby 3.4.x, Bundler 2.7.x.
+- Install: `bundle install`
 
-Unfortunately, due to limited manpower and resources, the Rails core team has
-not been able to confirm if this gem currently works with Rails 4.1 and above.
-If you have found any problems while upgrading your application, please report
-them at the [issue tracker](https://github.com/rails/prototype-rails/issues),
-or better yet, submit patches by sending a [pull request](https://github.com/rails/prototype-rails/pulls).
-
-In any case, this gem will *NOT* be officially supported on Rails 5.0 and above.
+## Support
+We don't offer support or accept PRs. This project can change or be removed at any time; pin a commit if you depend on it.
