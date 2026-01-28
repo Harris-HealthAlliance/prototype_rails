@@ -129,7 +129,7 @@ module ActionView
       #   </select>
       def remote_function(options)
         javascript_options = {method: options[:method] || 'GET'}
-        javascript_options[:url] = ERB::Util.html_escape(escape_javascript(url_for(options[:url])))
+        javascript_options[:url] = escape_javascript(url_for(options[:url]))
 
         update = ''
         if options[:update] && options[:update].is_a?(Hash)
